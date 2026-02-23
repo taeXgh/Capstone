@@ -1,0 +1,9 @@
+@echo off
+echo Now we will try moving a file from Google Drive to our test directory
+::Powershell.exe
+pause
+copy "C:\Users\talop\My Drive (thalia.edwards2203@gmail.com)\application-form-responses.gsheet" C:\Users\talop\Documents\intro-to-batch\testDir
+pause
+cd /d C:\Users\talop\Documents\intro-to-batch\testDir
+dir
+pause
