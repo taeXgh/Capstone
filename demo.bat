@@ -7,3 +7,8 @@ pause
 cd /d C:\Users\talop\Documents\intro-to-batch\testDir
 dir
 pause
+
+::Outline of functionality:
+::1. Grab file from google drive
+::2. Extracts info and resume document from sheet
+::3. 
