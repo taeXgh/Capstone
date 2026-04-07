@@ -1,37 +1,103 @@
-#---------------------------------------------------------------------
+# ---------------------------------------------------------------------
 # Program Name: ReadWriteGoogleSheets
 #
 # Purpose: This code reads from and writes to a Google Sheet
-# 
-# 
+#
+#
 #
 # Author: Thalia Edwards
 #
 # Date: 03/02/2026
 #
 # Edits by: Taha Chowdhury between 3-02-26 - 3-12-2026
-#------------------------------------------------------------------------
+# ------------------------------------------------------------------------
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from docx import Document
 from pathlib import Path
-#--------testing-------------
+from datetime import datetime, timedelta
+
+# --------testing-------------
 import hashlib
 import json
-#----------------------------
+from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
+from docx.opc.constants import RELATIONSHIP_TYPE as RT
+from docx.enum.dml import MSO_THEME_COLOR_INDEX
 
-#username = "talop"
+# ----------------------------
+
+# username = "talop"
+
 
 def get_resume_link(resume):
     return resume.split('"')[1]
 
+
+def format_submission_date(raw_value):
+    # Handles Google Sheets serial dates and converts to MM/DD/YYYY format
+    try:
+        serial = float(raw_value)
+        dt = datetime(1899, 12, 30) + timedelta(days=serial)
+        return dt.strftime("%m/%d/%Y")
+    except (ValueError, TypeError):
+        # Fallback if value is already a date string
+        text = str(raw_value).strip()
+        for fmt in ("%m/%d/%Y %H:%M:%S", "%m/%d/%Y"):
+            try:
+                return datetime.strptime(text, fmt).strftime("%m/%d/%Y")
+            except ValueError:
+                pass
+        return text
+
+        # Credit to ryan-rushton on GitHub for this function:
+
+
+def add_hyperlink(paragraph, url, text):
+    # 1) Create relationship id between this paragraph and external URL
+    part = paragraph.part
+    r_id = part.relate_to(url, RT.HYPERLINK, is_external=True)
+
+    # 2) Build <w:hyperlink r:id="...">
+    hyperlink = OxmlElement("w:hyperlink")
+    hyperlink.set(qn("r:id"), r_id)
+    hyperlink.set(qn("w:history"), "1")
+
+    # 3) Build the visible run inside the hyperlink
+    new_run = OxmlElement("w:r")
+    r_pr = OxmlElement("w:rPr")
+
+    # Optional style name from Word template
+    r_style = OxmlElement("w:rStyle")
+    r_style.set(qn("w:val"), "Hyperlink")
+    r_pr.append(r_style)
+    new_run.append(r_pr)
+
+    # Add visible text
+    text_elem = OxmlElement("w:t")
+    text_elem.text = text
+    new_run.append(text_elem)
+
+    hyperlink.append(new_run)
+
+    # 4) Attach hyperlink to paragraph
+    run = paragraph.add_run()
+    run._r.append(hyperlink)
+
+    # 5) Visual fallback if template lacks Hyperlink style
+    run.font.color.theme_color = MSO_THEME_COLOR_INDEX.HYPERLINK
+    run.font.underline = True
+
+    return run
+
+
 scopes = [
-    'https://www.googleapis.com/auth/spreadsheets',
-    'https://www.googleapis.com/auth/drive'
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/drive",
 ]
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-PROJECT_DIR = SCRIPT_DIR.parent   # pythonProject
+PROJECT_DIR = SCRIPT_DIR.parent  # pythonProject
 
 key_path = PROJECT_DIR / "secret_key" / "secret_key.json"
 template_path = PROJECT_DIR / "Applications" / "Application Template - Copy.docx"
@@ -40,12 +106,12 @@ template_path = PROJECT_DIR / "Applications" / "Application Template - Copy.docx
 creds = ServiceAccountCredentials.from_json_keyfile_name(key_path, scopes=scopes)
 
 file = gspread.authorize(creds)
-workbook = file.open('application-form-responses')
+workbook = file.open("application-form-responses")
 sheet = workbook.sheet1
 
 
-rows = sheet.get_all_values(value_render_option = "FORMULA") 
-#-----------------------------testing-----------------------------
+rows = sheet.get_all_values(value_render_option="FORMULA")
+# -----------------------------testing-----------------------------
 # Load or create applicant registry (persistent ID mapping)
 registry_path = PROJECT_DIR / "applicants_registry.json"
 try:
@@ -57,29 +123,29 @@ except FileNotFoundError:
 # Nested dictionary to track applicants and prevent duplicates
 # Structure: applicants[applicant_id][position_name] = application_data
 applicants = {}
-#------------------------------------------------------------------
+# ------------------------------------------------------------------
 for row in rows[1:]:
     application = {
-    "submission":         row[0],
-    "name":               row[1],
-    "email":              row[2],
-    "position":           row[3],
-    "resume_URL":         get_resume_link(str(row[4])),
-    "employment_status":  row[5],
-    "prior" :             row[6],
-    "hear_about" :        row[7],
-    "reason_left" :       row[8],
-    "current_employer" :  row[9],
-    "availability" :      row[10],
-    "phone" :             row[11],
-    "preferred" :         row[12],
-    "acknowledgement" :   row[13],
-    "age":                row[14],
+        "submission": format_submission_date(row[0]),
+        "name": row[1],
+        "email": row[2],
+        "position": row[3],
+        "resume_URL": get_resume_link(str(row[4])),
+        "employment_status": row[5],
+        "prior": row[6],
+        "hear_about": row[7],
+        "reason_left": row[8],
+        "current_employer": row[9],
+        "availability": row[10],
+        "phone": row[11],
+        "preferred": row[12],
+        "acknowledgement": row[13],
+        "age": row[14],
     }
-#------------------------------testing-----------------------------
+    # ------------------------------testing-----------------------------
     # Use email as lookup key for persistent ID assignment
     email = row[2].lower().strip()
-    
+
     # Check if we've seen this email before
     if email not in applicants_registry:
         # Assign new ID (format: APP_0001, APP_0002, etc.)
@@ -89,7 +155,7 @@ for row in rows[1:]:
     else:
         # Reuse existing ID for returning applicant
         applicant_id = applicants_registry[email]
-    
+
     position = application.get("position")
     applicant_name = application.get("name")
 
@@ -100,79 +166,38 @@ for row in rows[1:]:
     # Store or overwrite application (automatically handles duplicates)
     applicants[applicant_id][position] = application
 
-    print(f"Applicant ID: {applicant_id} | Position: {position} | Name: {applicant_name}")
+    print(
+        f"Applicant ID: {applicant_id} | Position: {position} | Name: {applicant_name}"
+    )
     print(application)
     print()
-#-------------------------------------------------------------------
-#-------------------------testing-----------------------------------
+
 # Save updated registry for next script run (persists ID assignments)
 with open(registry_path, "w") as f:
     json.dump(applicants_registry, f, indent=2)
-#-------------------------------------------------------------------
-
-#Create hyperlink in Word document for resume URL
-def add_hyperlink(paragraph, url, text):
-    """
-    A function that places a hyperlink within a paragraph object.
-
-    :param paragraph: The paragraph we are adding the hyperlink to.
-    :param url: A string containing the required url
-    :param text: The text displayed for the url
-    :return: A Run object containing the hyperlink
-    """
-
-    # This gets access to the document.xml.rels file and gets a new relation id value
-    part = paragraph.part
-    r_id = part.relate_to(url, RT.HYPERLINK, is_external=True)
-
-    # Create the w:hyperlink tag and add needed values
-    hyperlink = OxmlElement('w:hyperlink')
-    hyperlink.set(qn('r:id'), r_id, )
-    hyperlink.set(qn('w:history'), '1')
-
-    # Create a w:r element
-    new_run = OxmlElement('w:r')
-
-    # Create a new w:rPr element
-    rPr = OxmlElement('w:rPr')
-
-    # Create a w:rStyle element, note this currently does not add the hyperlink style as its not in
-    # the default template, I have left it here in case someone uses one that has the style in it
-    rStyle = OxmlElement('w:rStyle')
-    rStyle.set(qn('w:val'), 'Hyperlink')
-
-    # Join all the xml elements together add add the required text to the w:r element
-    rPr.append(rStyle)
-    new_run.append(rPr)
-    new_run.text = text
-    hyperlink.append(new_run)
-
-    # Create a new Run object and add the hyperlink into it
-    r = paragraph.add_run()
-    r._r.append(hyperlink)
-
-    # A workaround for the lack of a hyperlink style (doesn't go purple after using the link)
-    # Delete this if using a template that has the hyperlink style in it
-    r.font.color.theme_color = MSO_THEME_COLOR_INDEX.HYPERLINK
-    r.font.underline = True
-
-    return r
+# -------------------------------------------------------------------
 
 
 # Process all applications and generate Word documents
 for applicant_id, positions_dict in applicants.items():
     for position_name, application in positions_dict.items():
         applicant = application.get("name")
-        output_path = PROJECT_DIR / "Applications" / f"{applicant} - {position_name} Application.docx"
-        
+        output_path = (
+            PROJECT_DIR
+            / "Applications"
+            / f"{applicant} - {position_name} Application.docx"
+        )
+
         document = Document(template_path)
         for key, value in application.items():
             for p in document.paragraphs:
-                if key == "resume_URL":
-                    if f"[{key}]" in p.text:
-                        p.text = p.text.replace(f"[{key}]", str(value))
+                placeholder = f"[{key}]"
+                if placeholder in p.text:
+                    if key == "resume_URL":
+                        # Remove placeholder text, then insert hyperlink
+                        p.text = p.text.replace(placeholder, "")
+                        add_hyperlink(p, str(value), "View Resume")
+                    else:
+                        p.text = p.text.replace(placeholder, str(value))
 
-                elif f"[{key}]" in p.text:
-                    p.text = p.text.replace(f"[{key}]", str(value))
-                    
         document.save(output_path)
