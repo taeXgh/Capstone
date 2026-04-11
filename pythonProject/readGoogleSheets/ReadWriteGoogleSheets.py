@@ -22,6 +22,7 @@ from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.opc.constants import RELATIONSHIP_TYPE as RT
 from docx.enum.dml import MSO_THEME_COLOR_INDEX
+import os
 
 
 def get_resume_link(resume):
@@ -127,6 +128,7 @@ scopes = [
 # Define project directory paths
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_DIR = SCRIPT_DIR.parent  # pythonProject root directory
+APPLICATION_DIR = PROJECT_DIR / "Applications"  # Base directory for generated application documents
 
 # Path to service account credentials and document template
 key_path = PROJECT_DIR / "secret_key" / "secret_key.json"
@@ -226,43 +228,50 @@ for applicant_id, positions_dict in applicants.items():
         
         # Load template document for this application
         document = Document(template_path)
-        
+        section = document.sections[0]
+        footer = section.footer
+        foot_para = footer.paragraphs[0]
+        foot_para = foot_para.add_run(str(applicant))
         # --------- PLACEHOLDER REPLACEMENT ---------
         # Replace all placeholders with actual application data
         for key, value in application.items():
-            for p in document.paragraphs:
-                placeholder = f"[{key}]"
-                if placeholder in p.text:
-                    if key == "resume_URL":
-                        # Special handling: Remove placeholder and insert clickable hyperlink
-                        p.text = p.text.replace(placeholder, "")
-                        add_hyperlink(p, str(value), "View Resume")
-                    else:
-                        # Standard replacement for text fields
-                        p.text = p.text.replace(placeholder, str(value))
+            for table in document.tables:
+                for row in table.rows:
+                    for cell in row.cells:
+                        placeholder = f"[{key}]"
+                        if placeholder in cell.text:
+                            if key == "resume_URL":
+                                # Special handling: Remove placeholder and insert clickable hyperlink
+                                cell.text = cell.text.replace(placeholder, "")
+                                add_hyperlink(cell.paragraphs[0], str(value), "View Resume")
+                            else:
+                                # Standard replacement for text fields
+                                cell.text = cell.text.replace(placeholder, str(value))
+            
+                        
         
         # --------- PATH DETERMINATION AND DIRECTORY CREATION ---------
         # Determine output path based on position and create directory if needed
         # Map position names to their respective folders (known positions)
         if position_name == "Certified Nurse Assistant":
-            output_path = PROJECT_DIR / "Applications" / "Certified Nurse Assistant" / f"{applicant} - {position_name} Application.docx"
+            output_path = APPLICATION_DIR / "Certified Nurse Assistant" / f"{applicant} - {position_name} Application.docx"
         elif position_name == "Patient Care Assistant":
-            output_path = PROJECT_DIR / "Applications" / "Patient Care Assistant" / f"{applicant} - {position_name} Application.docx"
+            output_path = APPLICATION_DIR / "Patient Care Assistant" / f"{applicant} - {position_name} Application.docx"
         elif position_name == "Home Health Aide":
-            output_path = PROJECT_DIR / "Applications" / "Home Health Aide" / f"{applicant} - {position_name} Application.docx"
+            output_path = APPLICATION_DIR / "Home Health Aide" / f"{applicant} - {position_name} Application.docx"
         elif position_name == "Licensed Practical Nurse":
-            output_path = PROJECT_DIR / "Applications" / "Licensed Practical Nurse" / f"{applicant} - {position_name} Application.docx"
+            output_path = APPLICATION_DIR / "Licensed Practical Nurse" / f"{applicant} - {position_name} Application.docx"
         elif position_name == "Registered Nurse":
-            output_path = PROJECT_DIR / "Applications" / "Registered Nurse" / f"{applicant} - {position_name} Application.docx"
+            output_path = APPLICATION_DIR / "Registered Nurse" / f"{applicant} - {position_name} Application.docx"
         elif position_name == "Accountant":
-            output_path = PROJECT_DIR / "Applications" / "Accountant" / f"{applicant} - {position_name} Application.docx"
+            output_path = APPLICATION_DIR / "Accountant" / f"{applicant} - {position_name} Application.docx"
         elif position_name == "Auditor":
-            output_path = PROJECT_DIR / "Applications" / "Auditor" / f"{applicant} - {position_name} Application.docx"
+            output_path = APPLICATION_DIR / "Auditor" / f"{applicant} - {position_name} Application.docx"
         elif position_name == "System Administrator":
-            output_path = PROJECT_DIR / "Applications" / "System Administrator" / f"{applicant} - {position_name} Application.docx"
+            output_path = APPLICATION_DIR / "System Administrator" / f"{applicant} - {position_name} Application.docx"
         else:
             # Fallback: create folder for any unknown positions
-            output_path = PROJECT_DIR / "Applications" / position_name / f"{applicant} - {position_name} Application.docx"
+            output_path = APPLICATION_DIR / position_name / f"{applicant} - {position_name} Application.docx"
         
         # --------- DOCUMENT SAVING WITH ERROR HANDLING ---------
         # Attempt to save document; create directory if it doesn't exist
@@ -272,7 +281,7 @@ for applicant_id, positions_dict in applicants.items():
         except FileNotFoundError:
             # Directory doesn't exist; create it and retry save
             print(f"Directory for position '{position_name}' not found. Creating the directory and retrying...")
-            mkdir_path = PROJECT_DIR / "Applications" / position_name
+            mkdir_path = APPLICATION_DIR / position_name
             mkdir_path.mkdir(parents=True, exist_ok=True)
             output_path = mkdir_path / f"{applicant} - {position_name} Application.docx"
             document.save(output_path)
