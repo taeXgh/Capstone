@@ -128,7 +128,7 @@ scopes = [
 # Define project directory paths
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_DIR = SCRIPT_DIR.parent  # pythonProject root directory
-APPLICATION_DIR = PROJECT_DIR / "Applications"  # Base directory for generated application documents
+APPLICATION_DIR = Path("D:Applications").resolve()  # Base directory for generated application documents
 
 # Path to service account credentials and document template
 key_path = PROJECT_DIR / "secret_key" / "secret_key.json"
@@ -253,31 +253,13 @@ for applicant_id, positions_dict in applicants.items():
         # --------- PATH DETERMINATION AND DIRECTORY CREATION ---------
         # Determine output path based on position and create directory if needed
         # Map position names to their respective folders (known positions)
-        if position_name == "Certified Nurse Assistant":
-            output_path = APPLICATION_DIR / "Certified Nurse Assistant" / f"{applicant} - {position_name} Application.docx"
-        elif position_name == "Patient Care Assistant":
-            output_path = APPLICATION_DIR / "Patient Care Assistant" / f"{applicant} - {position_name} Application.docx"
-        elif position_name == "Home Health Aide":
-            output_path = APPLICATION_DIR / "Home Health Aide" / f"{applicant} - {position_name} Application.docx"
-        elif position_name == "Licensed Practical Nurse":
-            output_path = APPLICATION_DIR / "Licensed Practical Nurse" / f"{applicant} - {position_name} Application.docx"
-        elif position_name == "Registered Nurse":
-            output_path = APPLICATION_DIR / "Registered Nurse" / f"{applicant} - {position_name} Application.docx"
-        elif position_name == "Accountant":
-            output_path = APPLICATION_DIR / "Accountant" / f"{applicant} - {position_name} Application.docx"
-        elif position_name == "Auditor":
-            output_path = APPLICATION_DIR / "Auditor" / f"{applicant} - {position_name} Application.docx"
-        elif position_name == "System Administrator":
-            output_path = APPLICATION_DIR / "System Administrator" / f"{applicant} - {position_name} Application.docx"
-        else:
-            # Fallback: create folder for any unknown positions
-            output_path = APPLICATION_DIR / position_name / f"{applicant} - {position_name} Application.docx"
+        output_path = APPLICATION_DIR / position_name / f"{applicant} - {position_name} Application.docx"
         
         # --------- DOCUMENT SAVING WITH ERROR HANDLING ---------
         # Attempt to save document; create directory if it doesn't exist
         try:
             document.save(output_path)
-            print(f"Saved document for {applicant} applying for {position_name}")
+            print(f"New Applicant found for position: '{position_name}'")
         except FileNotFoundError:
             # Directory doesn't exist; create it and retry save
             print(f"Directory for position '{position_name}' not found. Creating the directory and retrying...")
@@ -285,6 +267,10 @@ for applicant_id, positions_dict in applicants.items():
             mkdir_path.mkdir(parents=True, exist_ok=True)
             output_path = mkdir_path / f"{applicant} - {position_name} Application.docx"
             document.save(output_path)
+        except PermissionError:
+            # Log any unexpected errors
+            print(f"Error saving document '{applicant} - {position_name}'. Please close Microsoft Word if the document is open and run this program again!")
+            #print(f"Error saving document for {applicant} - {position_name}: {e}")
         except Exception as e:
             # Log any unexpected errors
-            print(f"Error saving document for {applicant} - {position_name}: {e}")
+            print(f"Something went wrong with collecting applications. Please close and run this program again!")
