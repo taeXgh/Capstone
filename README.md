@@ -1,4 +1,4 @@
-# Project Title: Automated Application Collection System
+# Automated Application Collection System
 
 ## Overview
 
